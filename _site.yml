@@ -1,0 +1,11 @@
+name: "Temp Name"
+output_dir: "docs"
+navbar:
+  title: "Temp Title"
+  left:
+   - text: "Home"
+     href: index.html
+   - text: "Temp text"
+     href: 001_eda.html
+
+

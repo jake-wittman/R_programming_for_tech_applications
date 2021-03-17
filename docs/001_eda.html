@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Exploratory Data Analysis</title>
+
+<script src="site_libs/header-attrs-2.7/header-attrs.js"></script>
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.tab('show');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Temp Title</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="001_eda.html">Temp text</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Exploratory Data Analysis</h1>
+
+</div>
+
+
+<p>Read more about the palmerpenguins package here: <a href="https://allisonhorst.github.io/palmerpenguins/" class="uri">https://allisonhorst.github.io/palmerpenguins/</a></p>
+<pre class="r"><code># install.packages(&quot;palmerpenguins&quot;)
+library(palmerpenguins)
+library(ggplot2)
+library(GGally) # Used for pairwise correlation plots
+library(dplyr)
+library(purrr)</code></pre>
+<p>Load the palmer penguins data. There are two datasets in this package: penguins and penguins_raw. Penguins has already been pre-cleaned for us, so we will use that</p>
+<pre class="r"><code>data(&quot;penguins&quot;, package = &quot;palmerpenguins&quot;)</code></pre>
+<p>Take a peek at the data and immediately notice some of the values are NA. Four numeric variables (five if you count year)</p>
+<pre class="r"><code>head(penguins)</code></pre>
+<pre><code>## # A tibble: 6 x 8
+##   species island    bill_length_mm bill_depth_mm flipper_length_mm body_mass_g sex     year
+##   &lt;fct&gt;   &lt;fct&gt;              &lt;dbl&gt;         &lt;dbl&gt;             &lt;int&gt;       &lt;int&gt; &lt;fct&gt;  &lt;int&gt;
+## 1 Adelie  Torgersen           39.1          18.7               181        3750 male    2007
+## 2 Adelie  Torgersen           39.5          17.4               186        3800 female  2007
+## 3 Adelie  Torgersen           40.3          18                 195        3250 female  2007
+## 4 Adelie  Torgersen           NA            NA                  NA          NA &lt;NA&gt;    2007
+## 5 Adelie  Torgersen           36.7          19.3               193        3450 female  2007
+## 6 Adelie  Torgersen           39.3          20.6               190        3650 male    2007</code></pre>
+<p>Looks like there are 11 cases with missing data. Useful to check for any data you’re modeling</p>
+<pre class="r"><code>sum(complete.cases(penguins))</code></pre>
+<pre><code>## [1] 333</code></pre>
+<p>If you’re building linear models, it’s important to check for co-linearity among your potential predictors. This will also produce some other useful graphs helping to familiarize us with the data</p>
+<pre class="r"><code>ggpairs(penguins, columns = 1:6)</code></pre>
+<pre><code>## plot: [1,1] [==&gt;----------------------------------------------------------------------------------------] 3% est: 0s
+## plot: [1,2] [====&gt;--------------------------------------------------------------------------------------] 6% est: 1s
+## plot: [1,3] [=======&gt;-----------------------------------------------------------------------------------] 8% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [1,4] [=========&gt;---------------------------------------------------------------------------------] 11% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [1,5] [============&gt;------------------------------------------------------------------------------] 14% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [1,6] [==============&gt;----------------------------------------------------------------------------] 17% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [2,1] [=================&gt;-------------------------------------------------------------------------] 19% est: 1s
+## plot: [2,2] [===================&gt;-----------------------------------------------------------------------] 22% est: 1s
+## plot: [2,3] [======================&gt;--------------------------------------------------------------------] 25% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [2,4] [========================&gt;------------------------------------------------------------------] 28% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [2,5] [===========================&gt;---------------------------------------------------------------] 31% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## plot: [2,6] [=============================&gt;-------------------------------------------------------------] 33% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_boxplot).</code></pre>
+<pre><code>## 
+ plot: [3,1] [================================&gt;----------------------------------------------------------] 36% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## 
+ plot: [3,2] [==================================&gt;--------------------------------------------------------] 39% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## plot: [3,3] [=====================================&gt;-----------------------------------------------------] 42% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_density).</code></pre>
+<pre><code>## plot: [3,4] [=======================================&gt;---------------------------------------------------] 44% est: 1s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## plot: [3,5] [==========================================&gt;------------------------------------------------] 47% est: 1s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## plot: [3,6] [=============================================&gt;---------------------------------------------] 50% est: 1s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## 
+ plot: [4,1] [===============================================&gt;-------------------------------------------] 53% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## 
+ plot: [4,2] [==================================================&gt;----------------------------------------] 56% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## plot: [4,3] [====================================================&gt;--------------------------------------] 58% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [4,4] [=======================================================&gt;-----------------------------------] 61% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_density).</code></pre>
+<pre><code>## plot: [4,5] [=========================================================&gt;---------------------------------] 64% est: 1s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## plot: [4,6] [============================================================&gt;------------------------------] 67% est: 1s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## 
+ plot: [5,1] [==============================================================&gt;----------------------------] 69% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## 
+ plot: [5,2] [=================================================================&gt;-------------------------] 72% est: 1s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## plot: [5,3] [===================================================================&gt;-----------------------] 75% est: 1s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [5,4] [======================================================================&gt;--------------------] 78% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [5,5] [========================================================================&gt;------------------] 81% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_density).</code></pre>
+<pre><code>## plot: [5,6] [===========================================================================&gt;---------------] 83% est: 0s</code></pre>
+<pre><code>## Warning in ggally_statistic(data = data, mapping = mapping, na.rm = na.rm, : Removed 2 rows containing missing values</code></pre>
+<pre><code>## 
+ plot: [6,1] [=============================================================================&gt;-------------] 86% est: 0s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## 
+ plot: [6,2] [================================================================================&gt;----------] 89% est: 0s `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_bin).</code></pre>
+<pre><code>## plot: [6,3] [==================================================================================&gt;--------] 92% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [6,4] [=====================================================================================&gt;-----] 94% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [6,5] [=======================================================================================&gt;---] 97% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<pre><code>## plot: [6,6] [===========================================================================================]100% est: 0s</code></pre>
+<pre><code>## Warning: Removed 2 rows containing non-finite values (stat_density).</code></pre>
+<p><img src="001_eda_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>In the bargraph of species x island (second row, first column), its interesting to note that apparently all three species are not found on the same island together, and two species only appear on a single island.</p>
+<pre class="r"><code>penguins %&gt;% 
+   group_by(species, island) %&gt;% 
+   summarise(species_count = n())</code></pre>
+<pre><code>## `summarise()` regrouping output by &#39;species&#39; (override with `.groups` argument)</code></pre>
+<pre><code>## # A tibble: 5 x 3
+## # Groups:   species [3]
+##   species   island    species_count
+##   &lt;fct&gt;     &lt;fct&gt;             &lt;int&gt;
+## 1 Adelie    Biscoe               44
+## 2 Adelie    Dream                56
+## 3 Adelie    Torgersen            52
+## 4 Chinstrap Dream                68
+## 5 Gentoo    Biscoe              124</code></pre>
+<p>Note the correlation between bill length, bill depth, flipper length, and body mass. It appears too that there are two distinct groups present on the bill depth vs flipper length and bill depth vs body mass plots. Let’s color these plots by species to see if trends become apparent</p>
+<pre class="r"><code>ggplot(penguins,
+       aes(x = bill_depth_mm,
+           y = flipper_length_mm,
+           colour = species,
+           shape = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c(&quot;darkorange&quot;,&quot;purple&quot;,&quot;cyan4&quot;))</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<p><img src="001_eda_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<pre class="r"><code>ggplot(penguins,
+       aes(x = bill_depth_mm,
+           y = body_mass_g,
+           colour = species,
+           shape = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c(&quot;darkorange&quot;,&quot;purple&quot;,&quot;cyan4&quot;))</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<p><img src="001_eda_files/figure-html/unnamed-chunk-7-2.png" width="672" /></p>
+<p>Lets look at two more plots with bill length</p>
+<pre class="r"><code>ggplot(penguins,
+       aes(x = bill_length_mm,
+           y = bill_depth_mm,
+           colour = species,
+           shape = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c(&quot;darkorange&quot;,&quot;purple&quot;,&quot;cyan4&quot;))</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<p><img src="001_eda_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<pre class="r"><code>ggplot(penguins,
+       aes(x = bill_length_mm,
+           y = flipper_length_mm,
+           colour = species,
+           shape = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c(&quot;darkorange&quot;,&quot;purple&quot;,&quot;cyan4&quot;))</code></pre>
+<pre><code>## Warning: Removed 2 rows containing missing values (geom_point).</code></pre>
+<p><img src="001_eda_files/figure-html/unnamed-chunk-8-2.png" width="672" /></p>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
