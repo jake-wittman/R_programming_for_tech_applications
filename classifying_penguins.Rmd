@@ -8,7 +8,7 @@ knit: (function(input_file, encoding) {
  output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, include=TRUE, message=FALSE)
+knitr::opts_chunk$set(echo = TRUE, include=TRUE, message=FALSE, warning=FALSE)
 ```
 
 For these analyses we'll be using the `palmerpenguins` data provided in the package of the same name.
@@ -22,9 +22,15 @@ library(palmerpenguins)
 library(ggplot2)
 library(GGally) # Used for pairwise correlation plots
 library(dplyr)
+library(MASS) # For the lda() function
 library(purrr)
 ```
 
+# Classifiers used in this example
+
+We'll be looking at two different types of classifier models in this example: logistic regression and linear discriminant analysis. Logistic regression is often used when you have a single response variable that has two possible outcomes (*e.g.* yes/no, alive/dead, 1/0). Logistic regression is also a commonly used modeling framework if you want to make inferences about the relationship between different predictors and your response variable (*e.g.* does an individuals blood-pressure have a statistically significant association with the occurrence of a heart attack?). 
+
+Extensions of logistic regression can be used if your response variable has more than 2 possible outcomes, although in my experience these models are not used very often. There are a variety of models that can be used for predicting a response variable with >2 outcomes, but we will focus on linear discriminant analysis.
 
 There are two datasets in this package: penguins and penguins_raw penguins has already been pre-cleaned for us, so we will use that. You can load both datasets into your R environment with this function.
 
@@ -36,15 +42,18 @@ First step: always take a peek at the data. Immediately, I notice some of the va
 Also there are four numeric variables associated with each penguin species. These are all measurements of different aspects of the penguin body.
 
 ```{r}
-head(penguins)
+# Check that each variable is coded correctly and see what they are
+glimpse(penguins)
 ```
 
 Let's see how many rows there are with missing observations. 
 ```{r}
+# Total rows in dataset
 nrow(penguins)
+# Total rows with complete cases (i.e. no missing observations)
 sum(complete.cases(penguins))
 ```
-Looks like there are 11 cases with missing data. This is a useful check in any dataset.
+Looks like there are 11 cases with missing data. This is a useful check in any dataset. Many modeling methods cannot use observations where data are missing (although there are methods, such as multiple imputation, to deal with missing data) so this gives us an estimate of the actual sample size available for our model.
 
 Next I want to examine plots of the data to identify and interesting trends, look for obvious patterns, or look for areas where we might run into trouble. One potential trouble spot if you're building linear models is correlation between predictors. If your model will be used for making inference (*i.e.* my variable x has a statistically significant association with the response variable y), correlation between two predictors can make this difficult. Correlation between predictors is slightly less important if the goal is just prediction. 
 
@@ -56,20 +65,18 @@ I like to use the `ggpairs()` function from the `GGally` pacakge to quickly gene
 ggpairs(penguins, columns = 1:6)
 ```
 
+The plots along the diagonal are summaries of each variable on their own. The first two diagonal plots are bar graphs showing counts of observations in each category (so the upper left plot is the number of observations for each of the three species, and the next plot along the diagonal is the number of observations from each island). For the continuous numeric variables we're given density plots that show the distribution of observations for each variable. The plots off the diagonal give you information on how any two variables in this pairs plot are related. We also get information on the correlation if the two variables being used are both continuous.
 
 In the bargraph of species x island (second row, first column), its interesting to note that apparently
-all three species are not found on the same island together, and two species only appear on a single island. 
+all three species are not found on the same island together, and two of the species only appear on a single island. We can verify this and see which penguins are present on which islands with some summary functions.
 
 ```{r}
-
 penguins %>% 
    group_by(species, island) %>% 
    summarise(species_count = n())
 ```
    
-
-Note the correlation between bill length, bill depth, flipper length, and body mass. It appears too
-that there are two distinct groups present on the bill depth vs flipper length and bill depth vs body mass plots. Let's color these plots by species to see if trends become apparent
+Also, we should note the correlation between bill length, bill depth, flipper length, and body mass apparent in the scatterplots. It appears too that there are two distinct groups present on the bill depth vs flipper length and bill depth vs body mass plots. Let's color these plots by species to see if it is clear why these groups are present.
 
 ```{r}
 ggplot(penguins,
@@ -91,9 +98,9 @@ ggplot(penguins,
    scale_color_manual(values = c("darkorange","purple","cyan4"))
 ```
 
+Bill depth, flipper length, and body mass seem to be quite different for Gentoo penguins than for the other two penguins. That will be helpful later in the linear discriminant analysis when we try to predict penguin species from the data available.
 
-
-Lets look at two more plots with bill length
+Lets look at two more plots with bill length:
 
 ```{r}
 ggplot(penguins,
@@ -116,174 +123,62 @@ ggplot(penguins,
 ```
    
 
+These plots of bill length x bill depth and flipper length show that these three variables seem to do a good job at distinguishing all three of our species. 
 
-### EDA
-Lets build a classifier for the penguins. After looking at the data, I'm pretty confident we have some variables that will provide some good predictive/classification value
+# Logistic Regression
 
+We can use logistic regression to predict a binary outcome, such as sex. Mathematically speaking, we are modeling the probability of our response variable conditional on our predictor variables $Pr(Y | X)$. Perhaps we want to know if we can predict the sex of an Adelie penguin just by measuring their flipper length. Logistic regression is a good tool for this. Because there are likely differences in how flipper length changes among male and female penguins of different species, we'll just use the most common species in this dataset, the Adelie penguin.
 
-```{r}
-library(palmerpenguins)
-library(dplyr)
-library(MASS) # Using for the linear discriminant analysis, which is the classifier we'll build
-```
-
-
-Set up a training and test subset, 70/30
-```{r}
-data("penguins", package = "palmerpenguins")  # This will load the data
-```
-
-Remove the observations with missing data since these won't play well with the models
-Always note if you do this in any analysis
+We'll remove any rows with NA values so we only have complete cases, filter the data to just Adelie penguins, and then split into a training, validation, and testing datasets.
 ```{r}
 penguins <- penguins[complete.cases(penguins), ]
+adelie_penguins <- filter(penguins, species == "Adelie")
 ```
 
-Sample 70% of the dataset for the training
+Sample 60% of the dataset for the training
 
 ```{r}
-train_penguins <- sample_frac(penguins, 0.70)
-```
-
-
-Use anti-join to put the remaining 30% in another dataset
-
-```{r}
-test_penguins <- anti_join(penguins, train_penguins)
+# Set the seed so the random split is reproducible in the future.
+set.seed(314)
+train_ad_penguins <- sample_frac(adelie_penguins, 0.60)
 ```
 
 
-
-# First model -------------------------------------------------------------
-
-
-the lda() function uses syntax similar to lm() or glm() if you're familiar with those
-
-Let's start with just island and bill length and see how this classifier performs
-
+Use anti-join to put the remaining 40% in another dataframe.
 
 ```{r}
-lda_train1 <- lda(species ~ island + bill_length_mm,
-                  data = train_penguins)
-lda_train1
-plot(lda_train1)
+# Call it not training since it doesn't contain the training subset
+not_training_ad_penguins <- anti_join(adelie_penguins, train_ad_penguins)
 
-lda_test1 <- predict(lda_train1, newdata = test_penguins)
-```
-
-
-This gives us the predicted species our model predicts from our test data
-```{r}
-lda_test1$class
-
-```
-
-
-Let's see what % they get right 
-
-```{r}
-sum(lda_test1$class == test_penguins$species) / nrow(test_penguins)
-```
-
-
-91% isn't bad, but we can probably do better if we add one of the other variables
-Does the model consistently mis-predict a certain species?
-
-```{r}
-test_penguins[which(lda_test1$class != test_penguins$species), ]
-```
-
-Most of the mis-predictions are Adelie species. If you recall the EDA plots, that's not too surprising because Adelie was found on all three islands and bill length of Adelie was similar to Chinstrap. So we haven't included a variable that helps fully separate out Adelie from Chinstrap penguins. Including flipper length will probably do that!
-
-
-# Second model ------------------------------------------------------------
-# Add flipper length
-
-
-```{r}
-lda_train2 <- lda(species ~ island + bill_length_mm + flipper_length_mm,
-                  data = train_penguins)
-lda_train2
-plot(lda_train2)
-
-lda_test2 <- predict(lda_train2, newdata = test_penguins)
-```
-
-
-View predictions
-
-```{r}
-lda_test2$class
-```
-
-Let's see what % our second model gets right 
-```{r}
-sum(lda_test2$class == test_penguins$species) / nrow(test_penguins)
+# Further split the not_training dataset into a validation and testing set
+# We're splitting the not training dataset in half, resulting in each being 20% of the original
+validation_ad_penguins <- sample_frac(not_training_ad_penguins, 0.5)
+test_ad_penguins <- anti_join(not_training_ad_penguins, validation_ad_penguins)
 ```
 
 
 
-97% is pretty good, especially for ecological data! But we can still do better. The model is still not quite differentiating between Adelie and Chinstrap Lets add in our remaining two numeric variables and see if we can get that % up 
-
 ```{r}
-test_penguins[which(lda_test2$class != test_penguins$species), ]
-```
-
-
-# Third model -------------------------------------------------------------
-
-Add flipper length
-
-```{r}
-lda_train3 <- lda(species ~ island + bill_length_mm + flipper_length_mm + bill_depth_mm + body_mass_g,
-                  data = train_penguins)
-lda_train3
-plot(lda_train3)
-
-lda_test3 <- predict(lda_train3, newdata = test_penguins)
-```
-
-
-View predictions
-```{r}
-lda_test3$class
-```
-
-Let's see what % our second model gets right 
-```{r}
-
-sum(lda_test3$class == test_penguins$species) / nrow(test_penguins)
-```
-
-
-Looks like we successfully classified our penguins with these five variables! 
-
-
-
-# Logistic regression -----------------------------------------------------
-We can also use logistic regression to predict a binary outcome, such as sex. Perhaps we want to know if we can predict the sex of an Adelie penguin just by measuring their flipper_length. Logistic regression is a good tool for this. 
-
-
-```{r}
+# Logistic regression is a type of generalized linear regression, so we use the glm()
+# function and specify family = "binomial"
 log_reg1 <- glm(sex ~ flipper_length_mm, 
-                data = train_penguins,
-                subset = species == "Adelie", 
+                data = train_ad_penguins,
                 family = "binomial")
 ```
 
-Normally I would want to check residual plots of this model to make sure  the assumptions of the model are being met. However, interpreting residual  plots for logistic regression is tricky. If you need to do it, I recommend the `DHARMa` package
+Normally I would want to check residual plots of this model to make sure the assumptions of the model are being met. However, interpreting residual plots for logistic regression is tricky. If you need to do it, I recommend the `DHARMa` package. I won't be going into how to use that package in this example.
 
-Look at the summary and lets interpret these coefficients
+Look at the summary and lets interpret these coefficients (although I should note that if the assumptions aren't met, the interpretation of statistical significance isn't valid).
+
 ```{r}
 summary(log_reg1)
 ```
 
-The intercept in this model doesn't have much meaning - the estimates provided by R for the output from GLM are on the log-odds scale. The estimate for the intercept is the log odds that any given penguin is female when their weight is 0. Of course we do not expect to encounter a penguin with flipper length 0.
-If you wanted a more interpretable intercept, you could center the predictor variable body mass at its mean. Then the intercept would be the log odds that a penguin with average body mass is female.
+The intercept in this model doesn't have much meaning. In the majority of linear models fit with `lm()` or `glm()`, the intercept represents the expected value of the response when all of the predictors in the model are 0. The estimate for the intercept in a logistic regression is the log odds that any given penguin is male when their flipper length is 0. Of course we do not expect to encounter a penguin with flipper length 0, so in this model formulation the intercept does not have a meaningful biological interpretation. If you wanted a more interpretable intercept, you could center the predictor variable body mass at its mean. Then the intercept would be the log odds that a penguin with average body mass is female. However, if all we care about is prediction, the interpretation of the intercept isn't that important.
 
-How do I know that the intercept is the log odds that a penguin is female given 0 body mass? When R works with categorical variables it orders them alphanumerically. So if your variable sex takes on values of "male" and "female", "female" is coded as 0 and male is coded as 1.
+How do I know that the intercept is the log odds that a penguin is female given 0 body mass? When R works with categorical variables in models it orders them alphanumerically and then recodes them. So if your variable sex takes on values of "male" and "female", "female" is recoded as 0 and male is recoded as 1. Logistic regression then models the probability that an observation has a response of 1. We'll see in a minute how we can easily get predicted probabilities that a penguin is female.
 
-The slope estimate for body mass is interpreted as the log odds of being male increases by 0.102 for every 1 mm increase in flipper length. To get the output on a scale that is slightly (and only slightly) easier to interpret, we can exponentiate the slope coefficient.
+The slope estimate for body mass is interpreted as the log odds of being male increases by 0.102 for every 1 mm increase in flipper length. To get the output on a scale that is slightly easier to interpret, we can exponentiate the slope coefficient.
 
 
 ```{r}
@@ -292,40 +187,36 @@ exp(coef(log_reg1)[2])
 
 
 This number is the odds ratio associated with an increase in 1 gram of body mass.
-An odds ratio > 1 means that as the predictor variable increases, the odds increase. An odds ratio < 1 means that as the predictor variable decreases, the odds decrease. Another way to interpret this coefficient is that as body mass increases by 1 gram, the odds of being male increase by 10% (0.108 * 100 = 10%). These interpretations don't make the most sense in this example, but are useful 
-when modeling something like the whether or not someone will have a disease based on certain predictors.
+An odds ratio > 1 means that as the predictor variable increases, the odds that the response variable is 1 increases. An odds ratio < 1 means that as the predictor variable decreases, the odds that the response variable is 1 decreases. Another way to interpret this coefficient is that as body mass increases by 1 gram, the odds of being male increase by 11.8% (0.118 * 100 = 11.8%). These interpretations don't make the most sense in this example, but are useful when modeling something like the whether or not someone will have a disease based on certain predictors.
 
-Visualizing logistic regression is often one of the best ways to interpret your model. This is relatively easy to do with a single predictor. Set up sample data long the range of values we wish to predict. Looking at a summary for flipper length, 172 is the minimum and 231 is the maximum
-observed values in the overall data. Let's predict across that range + a little on either end
+Visualizing logistic regression is often one of the best ways to interpret your model. This is relatively easy to do with a single predictor. We'll set up sample data along the range of values we wish to predict. Looking at a summary for flipper length, 172 mm is the minimum and 231 mm is the maximum observed value in the overall data. Let's predict across that range + a little on either end
 
 ```{r}
+# Create a set simulated flipper length measurements along the range of our observed
+# values. 
 pred_dat <- data.frame(flipper_length_mm = seq(160, 240, length.out = 100))
-```
-
-We specify type = "response" to get predictions on the probability scale
-```{r}
+# We specify type = "response" to get predictions on the probability scale.
+# This gives us a vector of predicted probabilities based on our simulated flipper length
 pred_values <- predict(log_reg1, newdata = pred_dat, type = "response")
 ```
-
-
 
 Because our model coded female = 0 and male = 1, this is a visualization of the probability that a penguin is male given body weight
 ```{r}
 pred_dat %>% 
    mutate(pred_values = pred_values) %>% # Add the predicted probabilites to the dataframe
    ggplot(aes(x = flipper_length_mm, y = pred_values)) +
-   geom_line()
+   geom_line() +
+   labs(y = "Probability a penguin is male")
 ```
 
-
-
-A fairly straightforward transformation gives us the probability a penguin is female given body weight. We subtract the predicted probabilites from 1 to reverse the plot
+A fairly straightforward transformation gives us the probability a penguin is female given body weight. We subtract the predicted probabilites from 1 to reverse the plot and find the probability that a penguin is female.
 
 ```{r}
 pred_dat %>% 
    mutate(pred_values = (1 - pred_values)) %>% # Add the predicted probabilites to the dataframe
    ggplot(aes(x = flipper_length_mm, y = pred_values)) +
-   geom_line()
+   geom_line() +
+   labs(y = "Probability a penguin is female")
 ```
    
 
@@ -335,98 +226,215 @@ pred_dat %>%
    mutate(pred_values_female = (1 - pred_values),
           pred_values_male = pred_values) %>% # Add the predicted probabilites to the dataframe
    ggplot(aes(x = flipper_length_mm)) +
-   geom_line(aes(y = pred_values_female), colour = "purple") +
-   geom_line(aes(y = pred_values_male), colour = "darkorange")
+   geom_line(aes(y = pred_values_female, colour = "purple")) +
+   geom_line(aes(y = pred_values_male, colour = "darkorange")) +
+   labs(y = "Probability") +
+   scale_color_identity(name = "Sex",
+                        breaks = c("purple", "darkorange"),
+                        labels = c("Female", "Male"),
+                        guide = "legend")
+   
 ```
 
 Looking at this graph, we can see that there will be an intermediate area of flipper length where our model won't be sure whether the penguin is male or female based on flipper length alone.
 
-Lets test this model on our testing set. With logistic regression we have the ability to decide what cutoff point we use to determine if a penguin is male or female. For this example, we have no real reason to pick a cutoff point different from 0.50.However, if you were modeling something where the consequences of a false negative are worse than the consequences of a false positive, you may wish to use a different cutoff point.
+Lets use our validation dataset to see how our model performs. With logistic regression we have the ability to decide what cutoff point we use to determine if a penguin is male or female. For this example, we have no real reason to pick a cutoff point different from 0.50. However, if you were modeling something where the consequences of a false negative are worse than the consequences of a false positive, you may wish to use a different cutoff point.
 
 ```{r}
-test_preds <- predict(log_reg1, newdata = test_penguins, type = "response")
+validation_preds <- predict(log_reg1, newdata = validation_ad_penguins, type = "response")
+```
+
+If the predicted probability is less than or equal to 0.5, the prediction is that the pneguin is female, if it is greater than 0.5, the prediction is that the penguin is male.
+
+```{r}
+validation_classifier <- ifelse(validation_preds <= 0.5, "female", "male")
+```
+
+We can compare our model predictions to the actual observed penguin sexes. 
+```{r}
+sum(validation_classifier == validation_ad_penguins$sex) / nrow(validation_ad_penguins)
+```
+This classifier gets the estimate right about 72% of the time.
+
+We might want to see more than just the success rate - lets look at false classifications to see where our model is going wrong. This is termed a confusion matrix in predictive modeling literature.
+
+```{r}
+# The argument dnn tells table to label our rows as the observed values and 
+# columns as the predicted values
+table(validation_ad_penguins$sex, validation_classifier,
+      dnn = c("observed", "predicted"))
+```
+
+If you sum down the columns of this table, you have the total number of females predicted by our model in the left column and total number of males predicted in the right. The sum along the rows gives the total females in the actual validation data on the top and total males in the validation data on the bottom.
+
+It might be more useful to look at these as percentages though.
+
+```{r}
+prop.table(table(validation_ad_penguins$sex, validation_classifier,
+                 dnn = c("observed", "predicted")))
 ```
 
 
-If the predicted probability is less than or equal to 0.5, the prediction is female, if it is greater than 0.5, the prediction is male
+Our model misclassified females as males 13.7% of the time and misclassified males as females 13.7% of the time as well. It's possible we could improve our model predictions by optimizing the cut-off point but that's beyond the scope of this example. You could also improve this model by including more predictors. Let's try adding body mass to the model to see how the prediction changes. 
 
 ```{r}
+# Logistic regression is a type of generalized linear regression, so we use the glm()
+# function and specify family = "binomial"
+log_reg2 <- glm(sex ~ flipper_length_mm + body_mass_g, 
+                data = train_ad_penguins,
+                family = "binomial")
+summary(log_reg2)
+```
+
+```{r}
+validation_preds2 <- predict(log_reg2, newdata = validation_ad_penguins)
+validation_classifier2 <- ifelse(validation_preds2 <= 0.5, "female", "male")
+sum(validation_classifier2 == validation_ad_penguins$sex) / nrow(validation_ad_penguins)
+table(validation_ad_penguins$sex, validation_classifier2,
+                 dnn = c("observed", "predicted"))
+prop.table(table(validation_ad_penguins$sex, validation_classifier2,
+                 dnn = c("observed", "predicted")))
+```
+
+We've managed to successfully classify every penguin in the validation set! Now, let's take a look at the test set.
+
+```{r}
+test_preds <- predict(log_reg2, newdata = test_ad_penguins)
 test_classifier <- ifelse(test_preds <= 0.5, "female", "male")
+sum(test_classifier == test_ad_penguins$sex) / nrow(test_ad_penguins)
+table(validation_ad_penguins$sex, validation_classifier2,
+                 dnn = c("observed", "predicted"))
+prop.table(table(test_ad_penguins$sex, test_classifier,
+                 dnn = c("observed", "predicted")))
 ```
 
-This classifier gets the estimate right about 66% of the time.
+We didn't predict every penguin in the testing set correctly, but that's fine. You would not expect to correctly predict every test set since we did not fit the model to this data. We could try adding more variables but that might result in overfitting the data since we're only working with a subset of the whole penguins data. There are ways to assess overfitting in the validation set but again this outside the scope of this example. 
+
+# Linear Discriminant Analysis
+
+Lets build a classifier for the penguins. After looking at the data, I'm pretty confident we have some variables that will provide some good predictive/classification value for these penguin species.
+
+The lda() function uses syntax similar to lm() or glm() if you're familiar with those.
+
+Let's start with just island and bill length and see how this classifier performs. I chose island because that should provide a lot of information about the Gentoo and Chinstrap species, since they were each only found on one island. Bill length seemed to be another good variable to help separate out Adelie penguins from the other two.
+
+First we need to create our training, validation, and test datasets.
 ```{r}
-sum(test_classifier == test_penguins$sex) / nrow(test_penguins)
-```
-
-We might want to see more than just the success rate - lets look at false classifications to see where our model is going wrong.
-```{r}
-table(test_penguins$sex, test_classifier)
-
+train_penguins <- sample_frac(penguins, 0.60)
 ```
 
 
-If you sum down the columns of this table, you have the total number of females predicted by our model in the left column and total number of males predicted in the right. The sum along the rows gives the total females in the actual testing data on the top and total males in the testing data on the bottom.
-It might be more useful to look at these as %s though
-
-```{r}
-prop.table(table(test_penguins$sex, test_classifier))
-```
-
-
-
-Our model misclassified females 29% of the time and misclassified males 5% of the time. You may be able to get better performance by changing the cutoff value, but I'll leave that to the dedicated reader to figure out. You could also improve this model by including more predictor.
-
-
-Linear models
-
-If inference is our goal, we may instead prefer to use linear regression (or one of the extensions of linear regression, such as generalized linear regression, ANOVA, etc.).
+Use anti-join to put the remaining 40% in another dataframe.
 
 ```{r}
-library(palmerpenguins)
-library(dplyr)
+# Call it not training since it doesn't contain the training subset
+not_training_penguins <- anti_join(penguins, train_penguins)
 
-data("penguins", package = "palmerpenguins")
+# Further split the not_training dataset into a validation and testing set
+# We're splitting the not training dataset in half, resulting in each being 20% of the original
+validation_penguins <- sample_frac(not_training_penguins, 0.5)
+test_penguins <- anti_join(not_training_penguins, validation_penguins)
 ```
 
-
-# ANOVA -------------------------------------------------------------------
-
-
-Perhaps we are interested in knowing if bill length differs between our different species of penguins. Maybe knowing this will provide illumination on why they (hypothetically) use different food resources
-
-To do this we will want to use ANOVA since we're comparing a numeric response variable among a categorical variable with three groups
-
-First we set up the linear model
+Now we can fit our LDA.
 
 ```{r}
-lm1 <- lm(bill_length_mm ~ species,
-          data = penguins)
-```
-          
-Let's look at the summary
-```{r}
-summary(lm1)
+lda_train1 <- lda(species ~ island + bill_length_mm,
+                  data = train_penguins)
+lda_train1
 ```
 
+The "prior probability" part of the output just tells us what proportion of our data belongs to each species category (*e.g.* the number of Adelie penguins divided by the total number of penguins in the data). The group means give us a further breakdown based on the predictor variables. The first two columns tell us how the species are distributed among the three islands (you can find the percent of species X on the third island by (1 - (% on Dream + % on Torgersen)). You can confirm this is correct because the Chinstrap is only found on Dream island, hence it has a value of 1 for islandDream. The Gentoo is only found on Biscoe island, so it has values of 0 for Dream and Torgersen island. The bill_length_mm column gives us the average bill length for each penguin species. 
 
-
-To answer our question of interest, we use the anova() function on the fitted model object
+The coefficients of linear discriminants are the values the model uses to assign an observation to a category. It's similar to how a linear regression works where the coefficient is multiplied times the value of the predictor to get an estimated response. If our predictor variables work well, we will see that our points separate nicely into the categories we are trying to predict. We will ignore the proportion of trace component. We can produce a plot from this model to get an idea of how it is classifying our penguins.
 
 ```{r}
-anova_lm1 <- aov(lm1)
-summary(anova_lm1)
+plot(lda_train1)
 ```
 
-It looks like there is a significant difference between bill lengths of at least two of our species, but we don't know where We can assess the pairwise difference with a post-hoc test, such as Tukey's HSD test
+In this plot we see three regions, each of which correspond to our three islands. This is the reason I wanted to include the islands as a predictor; it provides a very strong way to group our penguins. It's hard to tell, but you can see in the top and bottom "islands" that they transition from Adelie penguins to either Gentoo (top) or Chinstrap (bottom). There is some overlap among the species here and it is individuals that fall into these regions of the model predictions that our model likely has a hard time classifying. We can make a better looking plot with `predict()` and `ggplot()`.
 
 ```{r}
-TukeyHSD(anova_lm1)
+lda_viz <- predict(lda_train1) 
+lda_viz <- cbind(train_penguins, lda_viz$x)
+ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c("darkorange","purple","cyan4"))
 ```
 
+Let's see how the model does on the validation set.
+```{r}
+lda_val1 <- predict(lda_train1, newdata = validation_penguins)
+lda_val1$class
+```
 
-Based on our p-values, Chinstrap and Gentoo penguins both have significantly longer bills than Adelie penguins, and Gentoo penguins are significantly smaller than Chinstrap penguins.
+`lda_test1$class` tells us what class every observation in the validation set gets classified to.
 
+Let's calculate how our model actually performs on the validation set
+
+```{r}
+sum(lda_val1$class == validation_penguins$species) / nrow(validation_penguins)
+```
+
+95% isn't bad, but we can probably do better if we add one of the other variables
+Does the model consistently mispredict a certain species? Let's look at the confusion matrix
+
+```{r}
+table(validation_penguins$species, lda_val1$class,
+      dnn = c("observed", "predicted"))
+```
+
+Most of the mispredictions are Adelie species. If you recall the EDA plots, that's not too surprising because Adelie was found on all three islands and bill length of Adelie was somewhat similar to Chinstrap. So we haven't included a variable that helps fully separate out Adelie from Chinstrap penguins. Including flipper length will probably do that!
+
+```{r}
+lda_train2 <- lda(species ~ island + bill_length_mm + flipper_length_mm,
+                  data = train_penguins)
+lda_train2
+
+```
+You'll see now that there seems to be a bit more separation now between our groups. Let's how this new model performs.
+
+```{r}
+lda_val2 <- predict(lda_train2, newdata = validation_penguins)
+
+table(validation_penguins$species, lda_val2$class,
+      dnn = c("observed", "predicted"))
+```
+
+We seemed to have traded several Gentoo misclassifications for a misclassification as a Chinstrap penguin. We can go ahead and throw in the last two continuous variables into the model and see how it performs on the test and validation sets.
+
+```{r}
+lda_train3 <- lda(species ~ island + bill_length_mm + flipper_length_mm + bill_depth_mm + body_mass_g,
+                  data = train_penguins)
+lda_train3
+lda_viz <- predict(lda_train3) 
+lda_viz <- cbind(train_penguins, lda_viz$x)
+ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c("darkorange","purple","cyan4"))
+```
+Looks good!
+
+```{r}
+lda_val3 <- predict(lda_train3, newdata = validation_penguins)
+
+
+table(validation_penguins$species, lda_val3$class,
+      dnn = c("observed", "predicted"))
+```
+
+No misses on the validation set
+
+```{r}
+lda_test3 <- predict(lda_train3, newdata = test_penguins)
+
+table(test_penguins$species, lda_test3$class,
+      dnn = c("observed", "predicted"))
+```
+
+Looks like we successfully classified our penguins with these five variables! 
 
 
 
