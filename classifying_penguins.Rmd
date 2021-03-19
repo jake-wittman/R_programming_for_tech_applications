@@ -65,9 +65,9 @@ I like to use the `ggpairs()` function from the `GGally` pacakge to quickly gene
 ggpairs(penguins, columns = 1:6)
 ```
 
-The plots along the diagonal are summaries of each variable on their own. The first two diagonal plots are bar graphs showing counts of observations in each category (so the upper left plot is the number of observations for each of the three species, and the next plot along the diagonal is the number of observations from each island). For the continuous numeric variables we're given density plots that show the distribution of observations for each variable. The plots off the diagonal give you information on how any two variables in this pairs plot are related. We also get information on the correlation if the two variables being used are both continuous.
+The plots along the diagonal are summaries of each individual variable, with the plot type dependent on the type of variable being plotted. The first two diagonal plots are bar graphs showing counts of observations in each category (so the upper left plot is the number of observations for each of the three species, and the next plot along the diagonal is the number of observations from each island). For the continuous numeric variables we're given density plots that show the distribution of observations for each variable. The plots off the diagonal give you information on how any two variables in this pairs plot are related. We also get information on the correlation if the two variables being used are both continuous.
 
-In the bargraph of species x island (second row, first column), its interesting to note that apparently
+In the bargraph of species counts on each island (second row, first column), its interesting to note that apparently
 all three species are not found on the same island together, and two of the species only appear on a single island. We can verify this and see which penguins are present on which islands with some summary functions.
 
 ```{r}
