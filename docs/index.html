@@ -374,8 +374,8 @@ library(GGally) # Used for pairwise correlation plots
 library(dplyr)
 library(MASS) # For the lda() function
 library(purrr)</code></pre>
-<div id="classifiers-used-in-this-example" class="section level1">
-<h1>Classifiers used in this example</h1>
+<div id="models-used-in-this-example" class="section level1">
+<h1>Models used in this example</h1>
 <p>We’ll be looking at two different types of classifier models in this example: logistic regression and linear discriminant analysis. Logistic regression is often used when you have a single response variable that has two possible outcomes (<em>e.g.</em> yes/no, alive/dead, 1/0). Logistic regression is also a commonly used modeling framework if you want to make inferences about the relationship between different predictors and your response variable (<em>e.g.</em> does an individuals blood-pressure have a statistically significant association with the occurrence of a heart attack?).</p>
 <p>Extensions of logistic regression can be used if your response variable has more than 2 possible outcomes, although in my experience these models are not used very often. There are a variety of models that can be used for predicting a response variable with &gt;2 outcomes, but we will focus on linear discriminant analysis. Linear discriminant analysis is a relatively simple model framework that can be used to predict a response with several categories.</p>
 <p>There are two datasets in this package: penguins and penguins_raw penguins has already been pre-cleaned for us, so we will use that. You can load both datasets into your R environment with this function.</p>

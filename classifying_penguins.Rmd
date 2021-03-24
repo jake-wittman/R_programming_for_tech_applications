@@ -26,7 +26,7 @@ library(MASS) # For the lda() function
 library(purrr)
 ```
 
-# Classifiers used in this example
+# Models used in this example
 
 We'll be looking at two different types of classifier models in this example: logistic regression and linear discriminant analysis. Logistic regression is often used when you have a single response variable that has two possible outcomes (*e.g.* yes/no, alive/dead, 1/0). Logistic regression is also a commonly used modeling framework if you want to make inferences about the relationship between different predictors and your response variable (*e.g.* does an individuals blood-pressure have a statistically significant association with the occurrence of a heart attack?). 
 
