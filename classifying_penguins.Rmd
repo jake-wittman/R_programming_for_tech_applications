@@ -32,7 +32,7 @@ We'll be looking at two different types of classifier models in this example: lo
 
 Extensions of logistic regression can be used if your response variable has more than 2 possible outcomes, although in my experience these models are not used very often. There are a variety of models that can be used for predicting a response variable with >2 outcomes, but we will focus on linear discriminant analysis. Linear discriminant analysis is a relatively simple model framework that can be used to predict a response with several categories.
 
-There are two datasets in this package: penguins and penguins_raw penguins has already been pre-cleaned for us, so we will use that. You can load both datasets into your R environment with this function.
+There are two datasets in this package: penguins and penguins_raw. The penguins dataset has already been pre-cleaned for us, so we will use that. You can load both datasets into your R environment with this function.
 
 ```{r}
 data("penguins", package = "palmerpenguins")
@@ -86,7 +86,7 @@ ggplot(penguins,
            colour = species,
            shape = species)) +
    geom_point() +
-   theme_minimal() +
+   theme_bw() +
    scale_color_manual(values = c("darkorange","purple","cyan4"))
 
 ggplot(penguins,
@@ -95,7 +95,7 @@ ggplot(penguins,
            colour = species,
            shape = species)) +
    geom_point() +
-   theme_minimal() +
+   theme_bw() +
    scale_color_manual(values = c("darkorange","purple","cyan4"))
 ```
 
@@ -175,11 +175,11 @@ Look at the summary and lets interpret these coefficients (although I should not
 summary(log_reg1)
 ```
 
-The intercept in this model doesn't have much meaning. In the majority of linear models fit with `lm()` or `glm()`, the intercept represents the expected value of the response when all of the predictors in the model are 0. The estimate for the intercept in a logistic regression is the log odds that any given penguin is male when their flipper length is 0. Of course we do not expect to encounter a penguin with flipper length 0, so in this model formulation the intercept does not have a meaningful biological interpretation. If you wanted a more interpretable intercept, you could center the predictor variable body mass at its mean. Then the intercept would be the log odds that a penguin with average body mass is female. However, if all we care about is prediction, the interpretation of the intercept isn't that important.
+The intercept in this model doesn't have much meaning. In the majority of linear models fit with `lm()` or `glm()`, the intercept represents the expected value of the response when all of the predictors in the model are 0. The estimate for the intercept in a logistic regression is the log odds that any given penguin is male when their flipper length is 0. Of course we do not expect to encounter a penguin with flipper length 0, so in this model formulation the intercept does not have a meaningful biological interpretation. If you wanted a more interpretable intercept, you could center the predictor variable body mass at its mean. Then the intercept would be the log odds that a penguin with average body mass is male. However, if all we care about is prediction, the interpretation of the intercept isn't that important.
 
-How do I know that the intercept is the log odds that a penguin is female given 0 body mass? When R works with categorical variables in models it orders them alphanumerically and then recodes them. So if your variable sex takes on values of "male" and "female", "female" is recoded as 0 and male is recoded as 1. Logistic regression then models the probability that an observation has a response of 1. We'll see in a minute how we can easily get predicted probabilities that a penguin is female.
+How do I know that the intercept is the log odds that a penguin is male given 0 flipper length? When R works with categorical variables in models it orders them alphanumerically and then recodes them. So if your variable sex takes on values of "male" and "female", "female" is recoded as 0 and "male" is recoded as 1. Logistic regression then models the probability that an observation has a response of 1 given the values of the predictor variable. We'll see in a minute how we can easily get predicted probabilities that a penguin is female.
 
-The slope estimate for body mass is interpreted as the log odds of being male increases by 0.102 for every 1 mm increase in flipper length. To get the output on a scale that is slightly easier to interpret, we can exponentiate the slope coefficient.
+The slope estimate for flipper length is interpreted as the log odds of being male increases by 0.102 for every 1 mm increase in flipper length. To get the output on a scale that is slightly easier to interpret, we can exponentiate the slope coefficient.
 
 
 ```{r}
@@ -187,10 +187,10 @@ exp(coef(log_reg1)[2])
 ```
 
 
-This number is the odds ratio associated with an increase in 1 gram of body mass.
-An odds ratio > 1 means that as the predictor variable increases, the odds that the response variable is 1 increases. An odds ratio < 1 means that as the predictor variable decreases, the odds that the response variable is 1 decreases. Another way to interpret this coefficient is that as body mass increases by 1 gram, the odds of being male increase by 11.8% (0.118 * 100 = 11.8%). These interpretations don't make the most sense in this example, but are useful when modeling something like the whether or not someone will have a disease based on certain predictors.
+This number is the odds ratio associated with an increase in 1 mm increase of flipper length.
+An odds ratio > 1 means that as the predictor variable increases, the odds that the response variable is 1 increases. An odds ratio < 1 means that as the predictor variable decreases, the odds that the response variable is 1 decreases. Another way to interpret this coefficient is that as flipper length increases by 1 mm, the odds of being male increase by 11.8% (0.118 * 100 = 11.8%). These interpretations are kind of weird in this example, but are useful when modeling something like the whether or not someone will have a disease based on certain predictors.
 
-Visualizing logistic regression is often one of the best ways to interpret your model. This is relatively easy to do with a single predictor. We'll set up sample data along the range of values we wish to predict. Looking at a summary for flipper length, 172 mm is the minimum and 231 mm is the maximum observed value in the overall data. Let's predict across that range + a little on either end
+Visualizing logistic regression is often one of the best ways to interpret your model. This is relatively easy to do with a single predictor. We'll set up sample data along the range of values we wish to predict. Looking at a summary for flipper length, 172 mm is the minimum and 231 mm is the maximum observed value in the overall data. Let's predict across that range + a little on either end.
 
 ```{r}
 # Create a set simulated flipper length measurements along the range of our observed
@@ -201,7 +201,7 @@ pred_dat <- data.frame(flipper_length_mm = seq(160, 240, length.out = 100))
 pred_values <- predict(log_reg1, newdata = pred_dat, type = "response")
 ```
 
-Because our model coded female = 0 and male = 1, this is a visualization of the probability that a penguin is male given body weight
+Because our model coded female = 0 and male = 1, this is a visualization of the probability that a penguin is male given flipper length.
 ```{r}
 pred_dat %>% 
    mutate(pred_values = pred_values) %>% # Add the predicted probabilites to the dataframe
@@ -245,7 +245,7 @@ Lets use our validation dataset to see how our model performs. With logistic reg
 validation_preds <- predict(log_reg1, newdata = validation_ad_penguins, type = "response")
 ```
 
-If the predicted probability is less than or equal to 0.5, the prediction is that the pneguin is female, if it is greater than 0.5, the prediction is that the penguin is male.
+If the predicted probability is less than or equal to 0.5, the prediction is that the penguin is female, if it is greater than 0.5, the prediction is that the penguin is male.
 
 ```{r}
 validation_classifier <- ifelse(validation_preds <= 0.5, "female", "male")
@@ -281,7 +281,7 @@ Our model misclassified females as males 13.7% of the time and misclassified mal
 ```{r}
 # Logistic regression is a type of generalized linear regression, so we use the glm()
 # function and specify family = "binomial"
-log_reg2 <- glm(sex ~ flipper_length_mm + body_mass_g, 
+log_reg2 <- glm(sex ~  body_mass_g + flipper_length_mm, 
                 data = train_ad_penguins,
                 family = "binomial")
 summary(log_reg2)
@@ -303,7 +303,7 @@ We've managed to successfully classify every penguin in the validation set! Now,
 test_preds <- predict(log_reg2, newdata = test_ad_penguins)
 test_classifier <- ifelse(test_preds <= 0.5, "female", "male")
 sum(test_classifier == test_ad_penguins$sex) / nrow(test_ad_penguins)
-table(validation_ad_penguins$sex, validation_classifier2,
+table(test_ad_penguins$sex, test_classifier,
                  dnn = c("observed", "predicted"))
 prop.table(table(test_ad_penguins$sex, test_classifier,
                  dnn = c("observed", "predicted")))
@@ -347,7 +347,7 @@ lda_train1
 
 The "prior probability" part of the output just tells us what proportion of our data belongs to each species category (*e.g.* the number of Adelie penguins divided by the total number of penguins in the data). The group means give us a further breakdown based on the predictor variables. The first two columns tell us how the species are distributed among the three islands (you can find the percent of species X on the third island by (1 - (% on Dream + % on Torgersen)). You can confirm this is correct because the Chinstrap is only found on Dream island, hence it has a value of 1 for islandDream. The Gentoo is only found on Biscoe island, so it has values of 0 for Dream and Torgersen island. The bill_length_mm column gives us the average bill length for each penguin species. 
 
-The coefficients of linear discriminants are the values the model uses to assign an observation to a category. It's similar to how a linear regression works where the coefficient is multiplied times the value of the predictor to get an estimated response. If our predictor variables work well, we will see that our points separate nicely into the categories we are trying to predict. We will ignore the proportion of trace component. We can produce a plot from this model to get an idea of how it is classifying our penguins.
+The coefficients of linear discriminants are the values the model uses to assign an observation to a category. It's similar to how a linear regression works where the coefficient is multiplied times the value of the predictor to get an estimated response. Linear discriminant analysis works a bit differently in that it takes our predictor variables and transforms them into two new predictor variables, Linear Discriminant 1 and Linear Discriminant 2 (or LD1 and LD2). The coefficient of linear disciminants act as weighting values and essentially weight how much each predictor contributes to the two new LD variables. The coefficients are chosen by the algorithm to maximize our ability to categorize our observations into a response group. If our predictor variables work well, we will see that our points separate nicely into the categories we are trying to predict. We can produce a plot from this model to get an idea of how it is classifying our penguins.
 
 ```{r}
 plot(lda_train1)
@@ -395,6 +395,16 @@ lda_train2
 
 ```
 You'll see now that there seems to be a bit more separation now between our groups. Let's how this new model performs.
+
+```{r}
+lda_viz <- predict(lda_train2) 
+lda_viz <- cbind(train_penguins, lda_viz$x)
+ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c("darkorange","purple","cyan4"))
+```
+
 
 ```{r}
 lda_val2 <- predict(lda_train2, newdata = validation_penguins)
