@@ -317,7 +317,7 @@ Lets build a classifier for the different penguin species. After looking at the 
 
 The lda() function uses syntax similar to lm() or glm() if you're familiar with those.
 
-Let's start with just island and bill length and see how this classifier performs. I chose island because that should provide a lot of information about the Gentoo and Chinstrap species, since they were each only found on one island. Bill length seemed to be another good variable to help separate out Adelie penguins from the other two.
+Let's start with just bill length and see how this classifier performs.
 
 First we need to create our training, validation, and test datasets.
 ```{r}
@@ -340,20 +340,44 @@ test_penguins <- anti_join(not_training_penguins, validation_penguins)
 Now we can fit our LDA.
 
 ```{r}
-lda_train1 <- lda(species ~ island + bill_length_mm,
+lda_train1 <- lda(species ~ bill_depth_mm + flipper_length_mm,
                   data = train_penguins)
 lda_train1
 ```
 
-The "prior probability" part of the output just tells us what proportion of our data belongs to each species category (*e.g.* the number of Adelie penguins divided by the total number of penguins in the data). The group means give us a further breakdown based on the predictor variables. The first two columns tell us how the species are distributed among the three islands (you can find the percent of species X on the third island by (1 - (% on Dream + % on Torgersen)). You can confirm this is correct because the Chinstrap is only found on Dream island, hence it has a value of 1 for islandDream. The Gentoo is only found on Biscoe island, so it has values of 0 for Dream and Torgersen island. The bill_length_mm column gives us the average bill length for each penguin species. 
+The "prior probability" part of the output just tells us what proportion of our data belongs to each species category (*e.g.* the number of Adelie penguins divided by the total number of penguins in the data). LDA uses this information as part of it's decision rule to assign an observation to a particular class.
 
-The coefficients of linear discriminants are the values the model uses to assign an observation to a category. It's similar to how a linear regression works where the coefficient is multiplied times the value of the predictor to get an estimated response. Linear discriminant analysis works a bit differently in that it takes our predictor variables and transforms them into two new predictor variables, Linear Discriminant 1 and Linear Discriminant 2 (or LD1 and LD2). The coefficient of linear disciminants act as weighting values and essentially weight how much each predictor contributes to the two new LD variables. The coefficients are chosen by the algorithm to maximize our ability to categorize our observations into a response group. If our predictor variables work well, we will see that our points separate nicely into the categories we are trying to predict. We can produce a plot from this model to get an idea of how it is classifying our penguins.
+The group means give us a further breakdown based on the predictor variables. For a continuous variable, like bill depth of flipper length, it gives us the average bill depth or flipper length for each class of our response variable, in this case each penguin species.
+
+The coefficients of linear discriminants are parameters the model uses to weight the predictor values of an observation and then assign that observation to a category. It's similar to how a linear regression works where the coefficient is multiplied times the value of the predictor to get an estimated response. Linear discriminant analysis works a bit differently in that it takes our predictor variables and transforms them into two new predictor variables, Linear Discriminant 1 and Linear Discriminant 2 (or LD1 and LD2), rather than using the raw predictor variables themselves. We can plot these new LD variables and will hopefully see that our points separate nicely into the categories we are trying to predict. You can do this by using the `plot()` function on the model object.
 
 ```{r}
 plot(lda_train1)
 ```
 
-In this plot we see three regions, each of which correspond to our three islands. This is the reason I wanted to include the islands as a predictor; it provides a very strong way to group our penguins. It's hard to tell, but you can see in the top and bottom "islands" that they transition from Adelie penguins to either Gentoo (top) or Chinstrap (bottom). There is some overlap among the species here and it is individuals that fall into these regions of the model predictions that our model likely has a hard time classifying. We can make a better looking plot with `predict()` and `ggplot()`.
+This plot isn't very pretty, and is quite hard to read. It looks like our penguin species are being sorted into two rough clouds of points based on the newly calculated LD variables. Let's calculate the LD variables by hand and create our own version of the plot that is easier to read. The coefficients of linear discriminant values can be accessed in the model object `lda_train1$scaling`. 
+
+```{r}
+# View LD coefficients
+lda_train1$scaling
+
+# Each individual coefficient can be accessed using square brackets to index the matrix
+# This code returns the LD coefficient from row 1 in column 2
+lda_train1$scaling[1, 2]
+
+# Use these coefficients to calculate LD1 and LD2 by hand
+train_penguins <- train_penguins %>% 
+   mutate(LD1_hand = lda_train1$scaling[1, 1] * bill_depth_mm + lda_train1$scaling[2, 1] * flipper_length_mm,
+          LD2_hand = lda_train1$scaling[1, 2] * bill_depth_mm + lda_train1$scaling[2, 2] * flipper_length_mm)
+
+# Produce a prettier plot
+ggplot(train_penguins, aes(x = LD1_hand, y = LD2_hand, colour = species)) +
+   geom_point() +
+   theme_minimal() +
+   scale_color_manual(values = c("darkorange","purple","cyan4"))
+```
+
+That's much nicer to look at, and easier to see what is going on as well. You might notice that the axes on this plot cover a different range than the axes on the plot we made with `plot(lda)`. This is because the LD values being plotted have been centered so the mean value of each LD variable is 0. We can access these centered LD values very easily and produce a plot that is almost identical to the one produced by `plot(lda)`.
 
 ```{r}
 lda_viz <- predict(lda_train1) 
@@ -364,6 +388,8 @@ ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
    scale_color_manual(values = c("darkorange","purple","cyan4"))
 ```
 
+In this plot we see two clouds of points, one for the Gentoo penguins and another for the Adelie and Chinstrap penguins. It looks like these two predictor variables are useful for classifying Gentoo and non-Gentoo penguins, but will perform poorly in determining if a penguin is Adelie or Chinstrap.
+
 Let's see how the model does on the validation set.
 ```{r}
 lda_val1 <- predict(lda_train1, newdata = validation_penguins)
@@ -372,13 +398,13 @@ lda_val1$class
 
 `lda_test1$class` tells us what class every observation in the validation set gets classified to.
 
-Let's calculate how our model actually performs on the validation set
+Let's calculate the accuracy of our model on the validation set
 
 ```{r}
 sum(lda_val1$class == validation_penguins$species) / nrow(validation_penguins)
 ```
 
-95% isn't bad, but we can probably do better if we add one of the other variables
+89% isn't bad, especially considering how much the Adelie and Chinstrap penguins seemed to overlap in our LD plot.
 Does the model consistently mispredict a certain species? Let's look at the confusion matrix
 
 ```{r}
@@ -386,25 +412,90 @@ table(validation_penguins$species, lda_val1$class,
       dnn = c("observed", "predicted"))
 ```
 
-Most of the mispredictions are Adelie species. If you recall the EDA plots, that's not too surprising because Adelie was found on all three islands and bill length of Adelie was somewhat similar to Chinstrap. So we haven't included a variable that helps fully separate out Adelie from Chinstrap penguins. Including flipper length will probably do that!
+As we suspected, most of the confusion our model has is misclassyfing Adelie as Chinstrap and vice-versa. We can visualize these misclassifications by producing a plot of our model. The model uses decision boundaries when classifying our observations, that is a point is classified as a particular species depending on which side of the LD boundaries it falls into. We can see this with the code below.
 
 ```{r}
-lda_train2 <- lda(species ~ island + bill_length_mm + flipper_length_mm,
+# To create our boundaries, we have to generate a grid of values for our 
+# two predictor variables. We can do this with the expand.grid() function.
+
+boundary_data <- expand.grid(bill_depth_mm = seq(min(penguins$bill_depth_mm),
+                                                 max(penguins$bill_depth_mm),
+                                                 length = 300),
+                             flipper_length_mm = seq(min(penguins$flipper_length_mm),
+                                                     max(penguins$flipper_length_mm),
+                                                     length = 300))
+# Now we use the boundary data with our grid of predictor variables to get predictions
+# from the model
+lda_boundaries <- data.frame(boundary_data,
+                             species = as.numeric(predict(lda_train1, boundary_data)$class))
+
+# Lastly, we'll make a scatter plot of flipper length by bill depth, color the points by species
+# and then draw the decision boundaries with stat_contour
+ggplot(validation_penguins,
+              aes(x = bill_depth_mm,
+                  y = flipper_length_mm,
+                  color = species)) +
+   geom_point() +
+   stat_contour(data = lda_boundaries,
+                aes(x = bill_depth_mm, y = flipper_length_mm, z = species),
+                colour = "black") +
+   scale_color_manual(values = c("darkorange","purple","cyan4"))
+```
+
+We can see that our Gentoo penguins all fall neatly one one side of one of a decision boundaries, but the Adelie and Chinstrap penguins do not. You should be able to identify the two Adelie that were misclassified as Chinstrap penguins in the middle decision region, and the five Chinstrap penguins that were misclassified as Adelie penguins in the bottom region.
+
+Let's try and improve our model. I want to add bill length now as a predictor variable. 
+
+```{r}
+lda_train2 <- lda(species ~ bill_depth_mm + flipper_length_mm + bill_length_mm,
                   data = train_penguins)
 lda_train2
-
 ```
-You'll see now that there seems to be a bit more separation now between our groups. Let's how this new model performs.
+
+
+Let's produce a plot of this model to see how our points are grouped. Once you get above 2 predictor values, it becomes a little more complicated to plot the decision boundaries, and we have to plot them on the plot of LD1 vs LD2 since it's hard to visualize the decision boundaries for a 3D scatterplot. For whatever reason, I was having difficulty plotting the decision boundaries themselves, so I made do with just plotting a bunch of points within each region and then coloring them by the species.
+
+```{r}
+# To create our boundaries, we have to generate a grid of values for our 
+# two predictor variables. We can do this with the expand.grid() function.
+
+boundary_data <- expand.grid(bill_depth_mm = seq(min(penguins$bill_depth_mm),
+                                                 max(penguins$bill_depth_mm),
+                                                 length = 15),
+                             flipper_length_mm = seq(min(penguins$flipper_length_mm),
+                                                     max(penguins$flipper_length_mm),
+                                                     length = 15),
+                             bill_length_mm = seq(min(penguins$bill_length_mm),
+                                                  max(penguins$bill_length_mm),
+                                                     length = 15))
+# Now we use the boundary data with our grid of predictor variables to get predictions
+# from the model
+lda_boundaries <- predict(lda_train2, boundary_data)
+lda_boundaries_df <- data.frame(LD1 = lda_boundaries$x[, 1],
+                                LD2 = lda_boundaries$x[, 2],
+                                species = lda_boundaries$class)
+ggplot(lda_boundaries_df) +
+   geom_point(aes(x = LD1, y = LD2, colour = species)) +
+   scale_color_manual(values = c("darkorange","purple","cyan4")) +
+   labs(title = "Decision boundaries as visualized by a bunch of points")
+```
+
+We can overlay the actual points from our actual training set onto this graph to see what regions they fall into and how our model will predict them.
 
 ```{r}
 lda_viz <- predict(lda_train2) 
 lda_viz <- cbind(train_penguins, lda_viz$x)
 ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
    geom_point() +
+   geom_point(data = lda_boundaries_df,
+              aes(x = LD1, y = LD2, colour = species),
+              alpha = 0.25,
+              size = 0.9) +
    theme_minimal() +
    scale_color_manual(values = c("darkorange","purple","cyan4"))
 ```
 
+It looks like adding bill length helps separate the Adelie and Chinstrap penguins into two groups, although with the training data we can still see a few purple (Chinstrap) points that will be misclassified as orange (Adelie). Let's see how the model does on the validation set.
 
 ```{r}
 lda_val2 <- predict(lda_train2, newdata = validation_penguins)
@@ -413,39 +504,14 @@ table(validation_penguins$species, lda_val2$class,
       dnn = c("observed", "predicted"))
 ```
 
-We seemed to have traded several Gentoo misclassifications for a misclassification as a Chinstrap penguin. We can go ahead and throw in the last two continuous variables into the model and see how it performs on the test and validation sets.
+Our second model seems to do really well! I'm pretty happy with this model. We predicted everything in the validation set. Let's see how it does on the testing dataset!
+
 
 ```{r}
-lda_train3 <- lda(species ~ island + bill_length_mm + flipper_length_mm + bill_depth_mm + body_mass_g,
-                  data = train_penguins)
-lda_train3
-lda_viz <- predict(lda_train3) 
-lda_viz <- cbind(train_penguins, lda_viz$x)
-ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
-   geom_point() +
-   theme_minimal() +
-   scale_color_manual(values = c("darkorange","purple","cyan4"))
-```
-Looks good!
+lda_test2 <- predict(lda_train2, newdata = test_penguins)
 
-```{r}
-lda_val3 <- predict(lda_train3, newdata = validation_penguins)
-
-
-table(validation_penguins$species, lda_val3$class,
+table(test_penguins$species, lda_test2$class,
       dnn = c("observed", "predicted"))
 ```
 
-No misses on the validation set
-
-```{r}
-lda_test3 <- predict(lda_train3, newdata = test_penguins)
-
-table(test_penguins$species, lda_test3$class,
-      dnn = c("observed", "predicted"))
-```
-
-Looks like we successfully classified our penguins with these five variables! 
-
-
-
+We missed one classification, but that's to be expected. We will likely never do as well on the test set as we do on the training or validation sets. I encourage you to try including island as a predictor in these LDA models and look at the corresponding plots to see what happens when you include a factor variable as a predictor.
