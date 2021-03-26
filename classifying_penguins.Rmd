@@ -343,6 +343,7 @@ Now we can fit our LDA.
 lda_train1 <- lda(species ~ bill_depth_mm + flipper_length_mm,
                   data = train_penguins)
 lda_train1
+
 ```
 
 The "prior probability" part of the output just tells us what proportion of our data belongs to each species category (*e.g.* the number of Adelie penguins divided by the total number of penguins in the data). LDA uses this information as part of it's decision rule to assign an observation to a particular class.
@@ -489,7 +490,7 @@ ggplot(lda_viz, aes(x = LD1, y = LD2, colour = species)) +
    geom_point() +
    geom_point(data = lda_boundaries_df,
               aes(x = LD1, y = LD2, colour = species),
-              alpha = 0.25,
+              alpha = 0.22,
               size = 0.9) +
    theme_minimal() +
    scale_color_manual(values = c("darkorange","purple","cyan4"))
